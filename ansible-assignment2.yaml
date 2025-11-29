@@ -1,0 +1,35 @@
+---
+- name: Setup loopback addressing and eigrp routing
+  hosts: routers
+  gather_facts: no
+  tasks:
+    - name: Setup Loopbacks
+      ios_config:
+        parents: interface Loopback{{ index }}
+        lines: 
+          - "ip address 10.{{ index }}.{{ index }}.{{ groups['routers'].index(inventory_hostname) + 1 }} 255.255.255.255"
+        save_when: modified
+      loop: "{{ range(0, 3) | list }}"
+      loop_control:
+        index_var: index
+    - name: Setup EIGRP routing
+      ios_config:
+        parents: router eigrp 100
+        lines:
+          - "network 10.0.0.0 0.255.255.255"
+          - "network 192.168.100.0 0.0.0.255"
+        save_when: modified
+    
+    - name: Get loopbacks
+      ios_command:
+        commands: show ip int br | include Loopback
+      register: loopbacks
+
+    - name: Get eigrp neighbors
+      ios_command:
+        commands: show ip eigrp neighbors
+      register: eigrp
+
+    - name: Display changes
+      debug:
+        msg: "{{ inventory_hostname }}: {{loopbacks.stdout_lines }} {{ eigrp.stdout_lines }}"
